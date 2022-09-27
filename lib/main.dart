@@ -12,6 +12,9 @@ import 'package:url_launcher/url_launcher.dart';
 Future<void> main() async {
   await Firebase.initializeApp(
       options: firebase_options.DefaultFirebaseOptions.currentPlatform);
+  if (const bool.fromEnvironment('dart.vm.product')) {
+    await FirebaseFirestore.instance.enablePersistence();
+  }
   runApp(const MyApp());
 }
 
@@ -79,23 +82,53 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     // getCurrentLocation();
-    getAllPlaces();
+    setAllPlace();
   }
 
-  Future<void> getAllPlaces() async {
-    final snapshot = await FirebaseFirestore.instance.collection('Place').get();
+  getFromFirestoreCache(collectionName, [condition, isEqualTo]) async {
+    if (condition == null) {
+      return FirebaseFirestore.instance
+          .collection(collectionName)
+          .get(GetOptions(source: Source.cache));
+    } else {
+      return FirebaseFirestore.instance
+          .collection(collectionName)
+          .where(condition, isEqualTo: isEqualTo)
+          .get(GetOptions(source: Source.cache));
+    }
+  }
+
+  getFromFirestoreServer(collectionName, [condition, isEqualTo]) async {
+    if (condition == null) {
+      return FirebaseFirestore.instance
+          .collection(collectionName)
+          .get(GetOptions(source: Source.server));
+    } else {
+      return FirebaseFirestore.instance
+          .collection(collectionName)
+          .where(condition, isEqualTo: isEqualTo)
+          .get(GetOptions(source: Source.server));
+    }
+  }
+
+  Future<void> setAllPlace() async {
+    var data = await getFromFirestoreCache('Place');
+    if (data.docs.isEmpty) {
+      data = await getFromFirestoreServer('Place');
+    }
     setState(() {
-      placeDocuments = snapshot.docs;
+      placeDocuments = data.docs;
     });
   }
 
   Future<void> getThumbnailKeyList(int placeId) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('Movie')
-        .where('place_id', isEqualTo: placeId)
-        .get();
+    var data = await getFromFirestoreCache('Movie', 'place_id', placeId);
+    print('${data.docs}');
+    if (data.docs.isEmpty) {
+      data = await getFromFirestoreServer('Movie', 'place_id', placeId);
+    }
     setState(() {
-      thumbnailDocuments = snapshot.docs;
+      thumbnailDocuments = data.docs;
     });
     return;
   }
@@ -230,12 +263,17 @@ class _MyHomePageState extends State<MyHomePage> {
                                                           fontSize: 12.sp)),
                                                   onPressed: () async {
                                                     final Uri url = Uri.parse(
+                                                        'comgooglemaps://?api=1&destination=${placeDocument['lat']},${placeDocument['long']}');
+                                                    final secondUrl = Uri.parse(
                                                         'https://www.google.com/maps/dir/?api=1&destination=${placeDocument['lat']},${placeDocument['long']}');
                                                     if (await canLaunchUrl(
                                                         url)) {
-                                                      launchUrl(url);
-                                                    }
-                                                    ;
+                                                      await launchUrl(url);
+                                                    } else if (await canLaunchUrl(
+                                                        secondUrl)) {
+                                                      await launchUrl(
+                                                          secondUrl);
+                                                    } else {}
                                                   }),
                                             ),
                                             SizedBox(
@@ -323,7 +361,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                         final Uri url = Uri.parse(
                                             'https://www.youtube.com/watch?v=${thumbnailDocuments[index].id}');
                                         if (await canLaunchUrl(url)) {
-                                          launchUrl(url);
+                                          launchUrl(
+                                            url,
+                                          );
                                         }
                                         ;
                                       },
