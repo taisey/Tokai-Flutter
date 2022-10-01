@@ -28,7 +28,7 @@ class MyApp extends StatelessWidget {
         designSize: const Size(390, 844),
         builder: (context, child) {
           return MaterialApp(
-            title: 'Flutter Demo',
+            title: 'Tokai OnAir Fan Site',
             theme: ThemeData(
               // This is the theme of your application.
               //
@@ -89,12 +89,12 @@ class _MyHomePageState extends State<MyHomePage> {
     if (condition == null) {
       return FirebaseFirestore.instance
           .collection(collectionName)
-          .get(GetOptions(source: Source.cache));
+          .get(const GetOptions(source: Source.cache));
     } else {
       return FirebaseFirestore.instance
           .collection(collectionName)
           .where(condition, isEqualTo: isEqualTo)
-          .get(GetOptions(source: Source.cache));
+          .get(const GetOptions(source: Source.cache));
     }
   }
 
@@ -102,12 +102,12 @@ class _MyHomePageState extends State<MyHomePage> {
     if (condition == null) {
       return FirebaseFirestore.instance
           .collection(collectionName)
-          .get(GetOptions(source: Source.server));
+          .get(const GetOptions(source: Source.server));
     } else {
       return FirebaseFirestore.instance
           .collection(collectionName)
           .where(condition, isEqualTo: isEqualTo)
-          .get(GetOptions(source: Source.server));
+          .get(const GetOptions(source: Source.server));
     }
   }
 
@@ -123,7 +123,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> getThumbnailKeyList(int placeId) async {
     var data = await getFromFirestoreCache('Movie', 'place_id', placeId);
-    print('${data.docs}');
     if (data.docs.isEmpty) {
       data = await getFromFirestoreServer('Movie', 'place_id', placeId);
     }
@@ -183,7 +182,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    LatLng _center =
+    LatLng center =
         LatLng(_currentLocation['latitude']!, _currentLocation['longitude']!);
 
     return Scaffold(
@@ -195,16 +194,17 @@ class _MyHomePageState extends State<MyHomePage> {
       body: Center(
         child: FlutterMap(
           options: MapOptions(
-            center: _center,
-            zoom: 16.0,
-            maxZoom: 17.0,
+            center: center,
+            zoom: 15.0,
+            maxZoom: 180,
             minZoom: 3.0,
+            interactiveFlags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
           ),
           mapController: _mapController,
           children: [
             TileLayer(
               urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-              subdomains: ['a', 'b', 'c'],
+              subdomains: const ['a', 'b', 'c'],
               retinaMode: true,
             ),
             MarkerLayer(
@@ -247,7 +247,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                                   style:
                                                       ElevatedButton.styleFrom(
                                                     backgroundColor:
-                                                        Color.fromARGB(
+                                                        const Color.fromARGB(
                                                             255, 245, 157, 42),
                                                     foregroundColor:
                                                         Colors.white,
@@ -282,7 +282,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                               child: ElevatedButton(
                                                 style: ElevatedButton.styleFrom(
                                                   backgroundColor:
-                                                      Color.fromARGB(
+                                                      const Color.fromARGB(
                                                           255, 102, 202, 241),
                                                   foregroundColor: Colors.white,
                                                   shape: RoundedRectangleBorder(
@@ -325,7 +325,7 @@ class _MyHomePageState extends State<MyHomePage> {
       floatingActionButton: FloatingActionButton(
         onPressed: getCurrentLocation,
         tooltip: '現在地を取得',
-        child: const Icon(Icons.my_location),
+        child: const Icon(Icons.my_location, color: Colors.white),
       ),
     );
   }
@@ -350,13 +350,13 @@ class _MyHomePageState extends State<MyHomePage> {
                                       MainAxisAlignment.spaceAround,
                                   children: [
                                     GestureDetector(
-                                      child: Text('いいえ'),
+                                      child: const Text('いいえ'),
                                       onTap: () {
                                         Navigator.pop(context);
                                       },
                                     ),
                                     GestureDetector(
-                                      child: Text('はい'),
+                                      child: const Text('はい'),
                                       onTap: () async {
                                         final Uri url = Uri.parse(
                                             'https://www.youtube.com/watch?v=${thumbnailDocuments[index].id}');
@@ -365,7 +365,6 @@ class _MyHomePageState extends State<MyHomePage> {
                                             url,
                                           );
                                         }
-                                        ;
                                       },
                                     )
                                   ]))
