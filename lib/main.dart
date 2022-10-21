@@ -74,7 +74,6 @@ class _MyHomePageState extends State<MyHomePage> {
   final MapController _mapController = MapController();
 
   int currentThumbnailIndex = 0;
-  List<String> thumbnailKeyList = ['KvpsHIRVd94', 'feDU_I2iL1I'];
   List<DocumentSnapshot> placeDocuments = [];
   List<DocumentSnapshot> thumbnailDocuments = [];
 
@@ -85,46 +84,54 @@ class _MyHomePageState extends State<MyHomePage> {
     setAllPlace();
   }
 
-  getFromFirestoreCache(collectionName, [condition, isEqualTo]) async {
+  Future<QuerySnapshot<Map<String, dynamic>>> getFromFirestoreCache(
+      collectionName, limit,
+      [condition, isEqualTo]) async {
     if (condition == null) {
       return FirebaseFirestore.instance
           .collection(collectionName)
+          .limit(limit)
           .get(const GetOptions(source: Source.cache));
     } else {
       return FirebaseFirestore.instance
           .collection(collectionName)
           .where(condition, isEqualTo: isEqualTo)
+          .limit(limit)
           .get(const GetOptions(source: Source.cache));
     }
   }
 
-  getFromFirestoreServer(collectionName, [condition, isEqualTo]) async {
+  Future<QuerySnapshot<Map<String, dynamic>>> getFromFirestoreServer(
+      collectionName, limit,
+      [condition, isEqualTo]) async {
     if (condition == null) {
       return FirebaseFirestore.instance
           .collection(collectionName)
+          .limit(limit)
           .get(const GetOptions(source: Source.server));
     } else {
       return FirebaseFirestore.instance
           .collection(collectionName)
           .where(condition, isEqualTo: isEqualTo)
+          .limit(limit)
           .get(const GetOptions(source: Source.server));
     }
   }
 
   Future<void> setAllPlace() async {
-    var data = await getFromFirestoreCache('Place');
+    var data = await getFromFirestoreCache('place', 100);
     if (data.docs.isEmpty) {
-      data = await getFromFirestoreServer('Place');
+      data = await getFromFirestoreServer('place', 100);
     }
     setState(() {
       placeDocuments = data.docs;
     });
   }
 
-  Future<void> getThumbnailKeyList(int placeId) async {
-    var data = await getFromFirestoreCache('Movie', 'place_id', placeId);
+  Future<void> getThumbnailKeyList(String placeId) async {
+    var data = await getFromFirestoreCache('movie', 5, 'place_id', placeId);
     if (data.docs.isEmpty) {
-      data = await getFromFirestoreServer('Movie', 'place_id', placeId);
+      data = await getFromFirestoreServer('movie', 5, 'place_id', placeId);
     }
     setState(() {
       thumbnailDocuments = data.docs;
@@ -219,7 +226,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     point: LatLng(placeDocument['lat'], placeDocument['long']),
                     builder: (context) => GestureDetector(
                       onTap: () async {
-                        await getThumbnailKeyList(placeDocument['id']);
+                        await getThumbnailKeyList(placeDocument.id);
                         if (!mounted) return;
                         _showStandardModalBottomSheet(
                             context,
@@ -316,6 +323,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         size: 40,
                       ),
                     ),
+                    anchorPos: AnchorPos.align(AnchorAlign.top),
                   ),
               ],
             ),
