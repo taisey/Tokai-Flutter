@@ -214,119 +214,7 @@ class _MyHomePageState extends State<MyHomePage> {
               subdomains: const ['a', 'b', 'c'],
               retinaMode: true,
             ),
-            MarkerLayer(
-              markers: [
-                Marker(
-                  point: LatLng(_currentLocation['latitude']!,
-                      _currentLocation['longitude']!),
-                  builder: (context) => const Icon(Icons.my_location),
-                ),
-                for (var placeDocument in placeDocuments)
-                  Marker(
-                    point: LatLng(placeDocument['lat'], placeDocument['long']),
-                    builder: (context) => GestureDetector(
-                      onTap: () async {
-                        await getThumbnailKeyList(placeDocument.id);
-                        if (!mounted) return;
-                        _showStandardModalBottomSheet(
-                            context,
-                            false,
-                            Container(
-                                margin: const EdgeInsets.all(10),
-                                height: 450.h,
-                                child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceEvenly,
-                                    children: [
-                                      Text(placeDocument['name'],
-                                          style: TextStyle(fontSize: 18.sp)),
-                                      thumbnailCarousel(),
-                                      Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceAround,
-                                          children: [
-                                            SizedBox(
-                                              width: 120.w,
-                                              height: 40.h,
-                                              child: ElevatedButton(
-                                                  style:
-                                                      ElevatedButton.styleFrom(
-                                                    backgroundColor:
-                                                        const Color.fromARGB(
-                                                            255, 245, 157, 42),
-                                                    foregroundColor:
-                                                        Colors.white,
-                                                    shape:
-                                                        RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              10),
-                                                    ),
-                                                  ),
-                                                  child: Text('ここへ行く',
-                                                      style: TextStyle(
-                                                          fontSize: 12.sp)),
-                                                  onPressed: () async {
-                                                    final Uri url = Uri.parse(
-                                                        'comgooglemaps://?api=1&destination=${placeDocument['lat']},${placeDocument['long']}');
-                                                    final secondUrl = Uri.parse(
-                                                        'https://www.google.com/maps/dir/?api=1&destination=${placeDocument['lat']},${placeDocument['long']}');
-                                                    if (await canLaunchUrl(
-                                                        url)) {
-                                                      await launchUrl(url);
-                                                    } else if (await canLaunchUrl(
-                                                        secondUrl)) {
-                                                      await launchUrl(
-                                                          secondUrl);
-                                                    } else {}
-                                                  }),
-                                            ),
-                                            SizedBox(
-                                              width: 120.w,
-                                              height: 40.h,
-                                              child: ElevatedButton(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor:
-                                                      const Color.fromARGB(
-                                                          255, 102, 202, 241),
-                                                  foregroundColor: Colors.white,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            10),
-                                                  ),
-                                                ),
-                                                child: Text('動画一覧',
-                                                    style: TextStyle(
-                                                        fontSize: 12.sp)),
-                                                onPressed: () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                        builder: (context) =>
-                                                            MovieListPage(
-                                                              thumbnailDocuments:
-                                                                  thumbnailDocuments,
-                                                            )),
-                                                  );
-                                                },
-                                              ),
-                                            ),
-                                          ]),
-                                    ])));
-                      },
-                      child: const Icon(
-                        Icons.location_pin,
-                        color: Color.fromARGB(255, 27, 89, 224),
-                        size: 40,
-                      ),
-                    ),
-                    anchorPos: AnchorPos.align(AnchorAlign.top),
-                  ),
-              ],
-            ),
+            mapMarkerLayer(),
           ],
         ),
       ),
@@ -338,6 +226,106 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  // Map
+  Widget mapMarkerLayer() {
+    return MarkerLayer(
+      markers: [
+        Marker(
+          point: LatLng(
+              _currentLocation['latitude']!, _currentLocation['longitude']!),
+          builder: (context) => const Icon(Icons.my_location),
+        ),
+        for (var placeDocument in placeDocuments) mapMarker(placeDocument),
+      ],
+    );
+  }
+
+  void onTapMarker(placeDocument) async {
+    await getThumbnailKeyList(placeDocument.id);
+    if (!mounted) return;
+    _showStandardModalBottomSheet(
+        context, false, modalContainer(placeDocument));
+  }
+
+  Marker mapMarker(placeDocument) {
+    return Marker(
+      point: LatLng(placeDocument['lat'], placeDocument['long']),
+      builder: (context) => GestureDetector(
+        onTap: () => onTapMarker(placeDocument),
+        child: const Icon(
+          Icons.location_pin,
+          color: Color.fromARGB(255, 27, 89, 224),
+          size: 40,
+        ),
+      ),
+      anchorPos: AnchorPos.align(AnchorAlign.top),
+    );
+  }
+
+  // Modal
+  Widget modalContainer(placeDocument) {
+    return Container(
+        margin: const EdgeInsets.all(10),
+        height: 450.h,
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Text(placeDocument['name'], style: TextStyle(fontSize: 18.sp)),
+              thumbnailCarousel(),
+              modalButtonRow(placeDocument),
+            ]));
+  }
+
+  void moveToGoogleMap(placeDocument) async {
+    final Uri url = Uri.parse(
+        'comgooglemaps://?api=1&destination=${placeDocument['lat']},${placeDocument['long']}');
+    final secondUrl = Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=${placeDocument['lat']},${placeDocument['long']}');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    } else if (await canLaunchUrl(secondUrl)) {
+      await launchUrl(secondUrl);
+    } else {}
+  }
+
+  void moveToMovieList() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (context) => MovieListPage(
+                thumbnailDocuments: thumbnailDocuments,
+              )),
+    );
+  }
+
+  Widget modalButton(bgColor, text, onPressed) {
+    return SizedBox(
+      width: 120.w,
+      height: 40.h,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: bgColor,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        onPressed: onPressed,
+        child: Text(text, style: TextStyle(fontSize: 12.sp)),
+      ),
+    );
+  }
+
+  Widget modalButtonRow(placeDocument) {
+    return Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+      modalButton(const Color.fromARGB(255, 245, 157, 42), 'ここへ行く',
+          () => moveToGoogleMap(placeDocument)),
+      modalButton(
+          const Color.fromARGB(255, 102, 202, 241), '動画一覧', moveToMovieList),
+    ]);
+  }
+
   Widget thumbnailCarousel() {
     return CarouselSlider.builder(
         // itemCount: thumbnailKeyList.length,
@@ -347,37 +335,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 showDialog(
                     context: context,
                     builder: (context) {
-                      return AlertDialog(
-                        title: const Text(
-                            textAlign: TextAlign.center, 'YouTubeを開きます'),
-                        actions: <Widget>[
-                          Container(
-                              margin: const EdgeInsets.all(10),
-                              child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceAround,
-                                  children: [
-                                    GestureDetector(
-                                      child: const Text('いいえ'),
-                                      onTap: () {
-                                        Navigator.pop(context);
-                                      },
-                                    ),
-                                    GestureDetector(
-                                      child: const Text('はい'),
-                                      onTap: () async {
-                                        final Uri url = Uri.parse(
-                                            'https://www.youtube.com/watch?v=${thumbnailDocuments[index].id}');
-                                        if (await canLaunchUrl(url)) {
-                                          launchUrl(
-                                            url,
-                                          );
-                                        }
-                                      },
-                                    )
-                                  ]))
-                        ],
-                      );
+                      return alertYouTubeDialog(index);
                     });
               },
               child: Image.network(
@@ -391,6 +349,38 @@ class _MyHomePageState extends State<MyHomePage> {
             onPageChanged: (index, reason) => setState(() {
                   currentThumbnailIndex = index;
                 })));
+  }
+
+  Widget alertYouTubeDialog(index) {
+    return AlertDialog(
+      title: const Text(textAlign: TextAlign.center, 'YouTubeを開きます'),
+      actions: <Widget>[alertYouTubeDialogContainer(index)],
+    );
+  }
+
+  Widget alertYouTubeDialogContainer(index) {
+    return Container(
+        margin: const EdgeInsets.all(10),
+        child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+          GestureDetector(
+            child: const Text('いいえ'),
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+          GestureDetector(
+            child: const Text('はい'),
+            onTap: () async {
+              final Uri url = Uri.parse(
+                  'https://www.youtube.com/watch?v=${thumbnailDocuments[index].id}');
+              if (await canLaunchUrl(url)) {
+                launchUrl(
+                  url,
+                );
+              }
+            },
+          )
+        ]));
   }
 }
 
