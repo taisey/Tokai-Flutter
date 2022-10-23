@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,6 +6,9 @@ import 'package:firebase_core/firebase_core.dart';
 import './firebase_options.dart' as firebase_options;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'dart:async';
 
 Future<void> main() async {
   await Firebase.initializeApp(
@@ -15,6 +16,7 @@ Future<void> main() async {
   if (const bool.fromEnvironment('dart.vm.product')) {
     await FirebaseFirestore.instance.enablePersistence();
   }
+  await dotenv.load(fileName: '.env');
   runApp(const MyApp());
 }
 
@@ -71,7 +73,11 @@ class _MyHomePageState extends State<MyHomePage> {
     'latitude': 34.956325,
     'longitude': 137.1588248
   };
-  final MapController _mapController = MapController();
+
+  final Completer<GoogleMapController> _controller = Completer();
+  CameraPosition _cameraPosition =
+      const CameraPosition(target: LatLng(34.956325, 137.1588248), zoom: 16);
+  bool isScrollable = true;
 
   int currentThumbnailIndex = 0;
   List<DocumentSnapshot> placeDocuments = [];
@@ -157,7 +163,8 @@ class _MyHomePageState extends State<MyHomePage> {
       // 東経がプラス、西経がマイナス
       _currentLocation['longitude'] = position.longitude;
       // 現在地をマップの中央に設定する
-      _mapController.move(LatLng(position.latitude, position.longitude), 16.0);
+      _cameraPosition = CameraPosition(
+          target: LatLng(position.latitude, position.longitude), zoom: 16);
     });
   }
 
@@ -184,13 +191,23 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
               ),
               child: child);
-        });
+        }).then(((value) {
+      // showModalBottomSheetが閉じたことを検知(value == null)
+      // マップをスクロール可能にする
+      setState(() {
+        isScrollable = !isScrollable;
+      });
+    }));
   }
 
   @override
   Widget build(BuildContext context) {
     LatLng center =
         LatLng(_currentLocation['latitude']!, _currentLocation['longitude']!);
+
+    List<Marker> markers = placeDocuments.map((placeDocument) {
+      return mapMarker(placeDocument);
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -199,48 +216,37 @@ class _MyHomePageState extends State<MyHomePage> {
             style: TextStyle(color: Colors.white, fontSize: 20.sp)),
       ),
       body: Center(
-        child: FlutterMap(
-          options: MapOptions(
-            center: center,
-            zoom: 15.0,
-            maxZoom: 180,
-            minZoom: 3.0,
-            interactiveFlags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
-          ),
-          mapController: _mapController,
-          children: [
-            TileLayer(
-              urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-              subdomains: const ['a', 'b', 'c'],
-              retinaMode: true,
-            ),
-            mapMarkerLayer(),
-          ],
+        child: GoogleMap(
+          myLocationEnabled: true,
+          myLocationButtonEnabled: true,
+          scrollGesturesEnabled: isScrollable,
+          mapType: MapType.normal,
+          initialCameraPosition: _cameraPosition,
+          onMapCreated: (GoogleMapController controller) {
+            _controller.complete(controller);
+          },
+          markers: markers.toSet(),
         ),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       floatingActionButton: FloatingActionButton(
-        onPressed: getCurrentLocation,
+        onPressed: () async {
+          await getCurrentLocation();
+          _controller.future.then((controller) {
+            controller
+                .animateCamera(CameraUpdate.newCameraPosition(_cameraPosition));
+          });
+        },
         tooltip: '現在地を取得',
         child: const Icon(Icons.my_location, color: Colors.white),
       ),
     );
   }
 
-  // Map
-  Widget mapMarkerLayer() {
-    return MarkerLayer(
-      markers: [
-        Marker(
-          point: LatLng(
-              _currentLocation['latitude']!, _currentLocation['longitude']!),
-          builder: (context) => const Icon(Icons.my_location),
-        ),
-        for (var placeDocument in placeDocuments) mapMarker(placeDocument),
-      ],
-    );
-  }
-
   void onTapMarker(placeDocument) async {
+    setState(() {
+      isScrollable = !isScrollable;
+    });
     await getThumbnailKeyList(placeDocument.id);
     if (!mounted) return;
     _showStandardModalBottomSheet(
@@ -249,16 +255,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Marker mapMarker(placeDocument) {
     return Marker(
-      point: LatLng(placeDocument['lat'], placeDocument['long']),
-      builder: (context) => GestureDetector(
-        onTap: () => onTapMarker(placeDocument),
-        child: const Icon(
-          Icons.location_pin,
-          color: Color.fromARGB(255, 27, 89, 224),
-          size: 40,
-        ),
-      ),
-      anchorPos: AnchorPos.align(AnchorAlign.top),
+      markerId: MarkerId(placeDocument.id),
+      position: LatLng(placeDocument['lat'], placeDocument['long']),
+      onTap: () => onTapMarker(placeDocument),
     );
   }
 
