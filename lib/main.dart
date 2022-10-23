@@ -11,6 +11,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:async';
 import 'package:flutter_config/flutter_config.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 Future<void> main() async {
   // For Android emulator
@@ -86,9 +88,8 @@ class _MyHomePageState extends State<MyHomePage> {
       const CameraPosition(target: LatLng(34.956325, 137.1588248), zoom: 16);
   bool isScrollable = true;
 
-  int currentThumbnailIndex = 0;
   List<DocumentSnapshot> placeDocuments = [];
-  List<DocumentSnapshot> thumbnailDocuments = [];
+  var movieDataObjects = [];
 
   @override
   void initState() {
@@ -141,15 +142,36 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  Future<void> getThumbnailKeyList(String placeId) async {
+  Future<bool> getThumbnailKeyList(String placeId) async {
     var data = await getFromFirestoreCache('movie', 5, 'place_id', placeId);
     if (data.docs.isEmpty) {
       data = await getFromFirestoreServer('movie', 5, 'place_id', placeId);
     }
-    setState(() {
-      thumbnailDocuments = data.docs;
-    });
-    return;
+    var movieDocs = data.docs.map((e) => e.id).toList().join(',');
+    var url = Uri.parse(
+        'https://www.googleapis.com/youtube/v3/videos?id=$movieDocs&key=${dotenv.get('YOUTUBE_API_KEY')}&part=snippet');
+    var res = await http.get(url);
+    if (res.statusCode == 200) {
+      var itemList = jsonDecode(res.body)['items'];
+      var currentMovieDataObjects = [];
+      for (var i = 0; i < itemList.length; i++) {
+        var date = itemList[i]['snippet']['publishedAt'].split('T')[0];
+        var publishedAt = date.split('-').join('/');
+        currentMovieDataObjects.add({
+          'id': itemList[i]['snippet']['videoId'],
+          'title': itemList[i]['snippet']['title'],
+          'thumbnail': itemList[i]['snippet']['thumbnails']['medium']['url'],
+          'publishedAt': publishedAt,
+        });
+      }
+      setState(() {
+        movieDataObjects = currentMovieDataObjects;
+      });
+    } else {
+      throw Exception('Failed to load movie data');
+    }
+
+    return true;
   }
 
   Future<void> getCurrentLocation() async {
@@ -282,18 +304,31 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   // Modal
+
   Widget modalContainer(placeDocument) {
-    return Container(
-        margin: const EdgeInsets.all(10),
-        height: 450.h,
-        child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Text(placeDocument['name'], style: TextStyle(fontSize: 18.sp)),
-              thumbnailCarousel(),
-              modalButtonRow(placeDocument),
-            ]));
+    return FutureBuilder(
+        future: getThumbnailKeyList(placeDocument.id),
+        builder: (context, snapshot) {
+          if (snapshot.hasData) {
+            return Container(
+                margin: const EdgeInsets.all(10),
+                height: 500.h,
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Text(placeDocument['name'],
+                          style: TextStyle(fontSize: 18.sp)),
+                      _ThumbnailCarousel(
+                        movieDataObjects: movieDataObjects,
+                      ),
+                      // Text(movieDataObjects[currentThumbnailIndex]['title']),
+                      modalButtonRow(placeDocument),
+                    ]));
+          } else {
+            return const Center(child: CircularProgressIndicator());
+          }
+        });
   }
 
   void moveToGoogleMap(placeDocument) async {
@@ -313,7 +348,7 @@ class _MyHomePageState extends State<MyHomePage> {
       context,
       MaterialPageRoute(
           builder: (context) => MovieListPage(
-                thumbnailDocuments: thumbnailDocuments,
+                movieDataObjects: movieDataObjects,
               )),
     );
   }
@@ -344,30 +379,61 @@ class _MyHomePageState extends State<MyHomePage> {
           const Color.fromARGB(255, 102, 202, 241), '動画一覧', moveToMovieList),
     ]);
   }
+}
 
-  Widget thumbnailCarousel() {
+class _ThumbnailCarousel extends StatefulWidget {
+  final List<dynamic> movieDataObjects;
+  const _ThumbnailCarousel({required this.movieDataObjects});
+
+  @override
+  State<StatefulWidget> createState() => _ThumbnailCarouselState();
+}
+
+class _ThumbnailCarouselState extends State<_ThumbnailCarousel> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
     return CarouselSlider.builder(
-        // itemCount: thumbnailKeyList.length,
-        itemCount: thumbnailDocuments.length,
-        itemBuilder: (context, index, realIndex) => GestureDetector(
-              onTap: () {
-                showDialog(
-                    context: context,
-                    builder: (context) {
-                      return alertYouTubeDialog(index);
-                    });
-              },
-              child: Image.network(
-                  'https://img.youtube.com/vi/${thumbnailDocuments[index].id}/maxresdefault.jpg'),
-            ),
+        itemCount: widget.movieDataObjects.length,
+        itemBuilder: (context, index, realIndex) =>
+            // child: Image.network(
+            //     'https://i.ytimg.com/vi/${movieDataObjects[index]['id']}/maxresdefault.jpg'),
+
+            index == _currentIndex
+                ? SizedBox(
+                    height: 400.h,
+                    child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          GestureDetector(
+                              onTap: () {
+                                showDialog(
+                                    context: context,
+                                    builder: (context) {
+                                      return alertYouTubeDialog(index);
+                                    });
+                              },
+                              child: Image.network(
+                                  widget.movieDataObjects[index]['thumbnail'])),
+                          Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: Text(
+                                  widget.movieDataObjects[index]['title'],
+                                  style: TextStyle(fontSize: 12.sp))),
+                        ]))
+                : Image.network(widget.movieDataObjects[index]['thumbnail']),
         options: CarouselOptions(
+            height: 300.h,
             initialPage: 0,
             viewportFraction: 0.8,
             enlargeCenterPage: true,
             enableInfiniteScroll: false,
-            onPageChanged: (index, reason) => setState(() {
-                  currentThumbnailIndex = index;
-                })));
+            onPageChanged: (index, reason) {
+              setState(() {
+                _currentIndex = index;
+              });
+            }));
   }
 
   Widget alertYouTubeDialog(index) {
@@ -391,7 +457,7 @@ class _MyHomePageState extends State<MyHomePage> {
             child: const Text('はい'),
             onTap: () async {
               final Uri url = Uri.parse(
-                  'https://www.youtube.com/watch?v=${thumbnailDocuments[index].id}');
+                  'https://www.youtube.com/watch?v=${widget.movieDataObjects[index]['id']}');
               if (await canLaunchUrl(url)) {
                 launchUrl(
                   url,
@@ -404,26 +470,55 @@ class _MyHomePageState extends State<MyHomePage> {
 }
 
 class MovieListPage extends StatelessWidget {
-  final List<DocumentSnapshot> thumbnailDocuments;
-  const MovieListPage({Key? key, required this.thumbnailDocuments})
+  final List<dynamic> movieDataObjects;
+  const MovieListPage({Key? key, required this.movieDataObjects})
       : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('動画一覧'),
+        title: const Text('動画一覧', style: TextStyle(color: Colors.white)),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SingleChildScrollView(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.center,
-          children: thumbnailDocuments
+          children: movieDataObjects
               .map((elem) => Container(
-                  margin:
-                      const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-                  child: Image.network(
-                      'https://img.youtube.com/vi/${elem.id}/maxresdefault.jpg')))
+                    alignment: Alignment.center,
+                    margin: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 20),
+                    child: GestureDetector(
+                      child: Card(
+                          child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: Column(children: [
+                                Image.network(elem['thumbnail']),
+                                SizedBox(
+                                    width: 320,
+                                    child: Padding(
+                                        padding: const EdgeInsets.only(top: 10),
+                                        child: Column(children: [
+                                          Text(elem['title']),
+                                          Align(
+                                              alignment: Alignment.centerRight,
+                                              child: Text(elem['publishedAt'])),
+                                        ]))),
+                              ]))),
+                      onTap: () async {
+                        final Uri url = Uri.parse(
+                            'https://www.youtube.com/watch?v=${elem['id']}');
+                        if (await canLaunchUrl(url)) {
+                          launchUrl(
+                            url,
+                          );
+                        }
+                      },
+                    ),
+                  ))
+              // 'https://i.ytimg.com/vi/${elem['id']}/maxresdefault.jpg')))
               .toList(),
         ),
       ),
