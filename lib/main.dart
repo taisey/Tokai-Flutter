@@ -9,13 +9,19 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:async';
+import 'package:flutter_config/flutter_config.dart';
 
 Future<void> main() async {
+  // For Android emulator
+  WidgetsFlutterBinding.ensureInitialized();
+  await FlutterConfig.loadEnvVariables();
+  // Initialize Firebase
   await Firebase.initializeApp(
       options: firebase_options.DefaultFirebaseOptions.currentPlatform);
   if (const bool.fromEnvironment('dart.vm.product')) {
     await FirebaseFirestore.instance.enablePersistence();
   }
+  // Load env variables
   await dotenv.load(fileName: '.env');
   runApp(const MyApp());
 }
@@ -217,8 +223,6 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: Center(
         child: GoogleMap(
-          myLocationEnabled: true,
-          myLocationButtonEnabled: true,
           scrollGesturesEnabled: isScrollable,
           mapType: MapType.normal,
           initialCameraPosition: _cameraPosition,
@@ -226,20 +230,22 @@ class _MyHomePageState extends State<MyHomePage> {
             _controller.complete(controller);
           },
           markers: markers.toSet(),
+          myLocationEnabled: true,
+          myLocationButtonEnabled: true,
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await getCurrentLocation();
-          _controller.future.then((controller) {
-            controller
-                .animateCamera(CameraUpdate.newCameraPosition(_cameraPosition));
-          });
-        },
-        tooltip: '現在地を取得',
-        child: const Icon(Icons.my_location, color: Colors.white),
-      ),
+      // floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
+      // floatingActionButton: FloatingActionButton(
+      //   onPressed: () async {
+      //     await getCurrentLocation();
+      //     _controller.future.then((controller) {
+      //       controller
+      //           .animateCamera(CameraUpdate.newCameraPosition(_cameraPosition));
+      //     });
+      //   },
+      //   tooltip: '現在地を取得',
+      //   child: const Icon(Icons.my_location, color: Colors.white),
+      // ),
     );
   }
 
