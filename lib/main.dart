@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:tokaionairapp/privacy_policy.dart';
 import './firebase_options.dart' as firebase_options;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,7 +15,7 @@ import 'package:flutter_config/flutter_config.dart';
 Future<void> main() async {
   // For Android emulator
   WidgetsFlutterBinding.ensureInitialized();
-  await FlutterConfig.loadEnvVariables();
+  // await FlutterConfig.loadEnvVariables();
   // Initialize Firebase
   await Firebase.initializeApp(
       options: firebase_options.DefaultFirebaseOptions.currentPlatform);
@@ -208,9 +209,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    LatLng center =
-        LatLng(_currentLocation['latitude']!, _currentLocation['longitude']!);
-
     List<Marker> markers = placeDocuments.map((placeDocument) {
       return mapMarker(placeDocument);
     }).toList();
@@ -220,6 +218,22 @@ class _MyHomePageState extends State<MyHomePage> {
         title: Text(widget.title,
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.white, fontSize: 20.sp)),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      drawer: Drawer(
+        child: ListView(children: [
+          ListTile(
+            title: const Text('Privacy policy'),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PrivacyPolicy(),
+                ),
+              );
+            },
+          ),
+        ]),
       ),
       body: Center(
         child: GoogleMap(
